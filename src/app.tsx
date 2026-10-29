@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
-import { readNight } from './digest/read.js';
 import { loadConfig, type RigConfig } from './config.js';
+import { readNight } from './digest/read.js';
 import { lane } from './lane.js';
 import { readStatus } from './status.js';
 import { Layout } from './views/layout.js';
+import { DigestPage } from './views/digest.js';
 import { StatusBoard } from './views/status.js';
 
 export function createApp(config: RigConfig = loadConfig()) {
@@ -18,6 +19,16 @@ export function createApp(config: RigConfig = loadConfig()) {
       </Layout>,
     ),
   );
+
+  app.get('/digest/:night', (c) => {
+    const night = readNight(config.runsDir, c.req.param('night'));
+    if (!night) return c.text('no such night', 404);
+    return c.html(
+      <Layout title={`digest ${night.night}`} lane={lane()}>
+        <DigestPage night={night} />
+      </Layout>,
+    );
+  });
 
   // Same readNight result as the page (ADR 0001): the two must never disagree.
   app.get('/api/digest/:night', (c) => {
