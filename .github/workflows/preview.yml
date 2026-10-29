@@ -1,0 +1,47 @@
+# Plan § 3–4, ADR 0003: the preview is one HTML file on GitHub Pages, deployed from an Actions
+# artifact, never committed. LANE_MARKER comes from the repo secret of the same name; delete the
+# secret and run this again to upload the same page without the marker, over the same link.
+name: preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install
+      - name: Save /digest/2026-10-28 as one HTML file
+        env:
+          LANE_MARKER: ${{ secrets.LANE_MARKER }}
+          PORT: 8787
+        run: |
+          pnpm start > rig.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs localhost:8787/health >/dev/null && break; sleep 1; done
+          mkdir -p _site
+          curl -fsS localhost:8787/digest/2026-10-28 -o _site/index.html
+          if grep -q 'no marker set' _site/index.html; then echo "banner: no marker set"; else echo "banner: lane marker set"; fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
